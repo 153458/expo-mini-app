@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 
 const API_URL = 'https://jsonplaceholder.typicode.com/posts';
-const THUMB_SIZE = 46; // must be above styles
+const THUMB_SIZE = 46; 
 
 export default function App() {
   const [items, setItems] = useState([]);
@@ -69,10 +69,9 @@ export default function App() {
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
 
-      // Defensive check
       if (!Array.isArray(data)) throw new Error('Invalid data format');
 
-      setItems(data.slice(0, 20)); // keep first 20 items
+      setItems(data.slice(0, 20)); 
       Animated.timing(progress, { toValue: 1, duration: 300, useNativeDriver: false }).start(() => {
         setLoading(false);
         setSuccessVisible(true);
@@ -103,14 +102,13 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Expo Mini-App — Fetch & Slide</Text>
 
-      {/* Progress bar */}
+      
       {loading && (
         <View style={styles.progressContainer}>
           <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
         </View>
       )}
 
-      {/* Slide to fetch */}
       <View style={styles.slideWrapper}>
         <Text style={styles.label}>Slide to fetch</Text>
         <View style={[styles.slideTrack, { width: SLIDE_WIDTH }]}>
@@ -124,14 +122,12 @@ export default function App() {
         <Text style={styles.hint}>Drag the thumb to the right to trigger a fetch</Text>
       </View>
 
-      {/* Button alternative */}
       <TouchableOpacity style={styles.button} onPress={onPressFetchButton}>
         <Text style={styles.buttonText}>Fetch (Button)</Text>
       </TouchableOpacity>
 
       {errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
 
-      {/* Results */}
       <View style={styles.listContainer}>
         <Text style={styles.subHeader}>Results ({items.length})</Text>
 
@@ -151,7 +147,6 @@ export default function App() {
         />
       </View>
 
-      {/* Confirmation Modal */}
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
@@ -175,7 +170,6 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Success Modal */}
       <Modal visible={successVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
