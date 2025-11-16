@@ -1,50 +1,92 @@
-// App.js
-import React, { useRef, useState } from 'react';
+
+import { useEffect, useRef, useState } from 'react';
 import {
-  SafeAreaView,
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  Animated,
-  PanResponder,
-  Modal,
-  Pressable,
-  TouchableOpacity,
-  Alert,
   ActivityIndicator,
+  Alert,
+  Animated,
+  Easing,
+  FlatList,
+  Modal,
+  PanResponder,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const API_URL = 'https://jsonplaceholder.typicode.com/posts';
-const THUMB_SIZE = 46; 
+const THUMB_SIZE = 46;
 
 export default function App() {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
 
   const progress = useRef(new Animated.Value(0)).current;
   const slideX = useRef(new Animated.Value(0)).current;
   const SLIDE_WIDTH = 260;
+
+  // NEW animated values - TIMING: To Fade & slide the results in after fetch
+  const listOpacity = useRef(new Animated.Value(0)).current;
+  const listTranslateY = useRef(new Animated.Value(12)).current;
+
+  // DECAY: makes the slider glide on release, then spring back
+  const maxThumbX = SLIDE_WIDTH - THUMB_SIZE;
+  useEffect(() => {
+    const id = slideX.addListener(({ value }) => {
+      if (value < 0) slideX.setValue(0);
+      if (value > maxThumbX) slideX.setValue(maxThumbX);
+    });
+    return () => slideX.removeListener(id);
+  }, [slideX]);
+
+  // We can take this out - spring pop for the success modal
+  const modalScale = useRef(new Animated.Value(0.9)).current;
+  useEffect(() => {
+    if (successVisible) {
+      modalScale.setValue(0.9);
+      Animated.spring(modalScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 140,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [successVisible]);
 
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (e, gestureState) => {
-        const newX = Math.max(0, Math.min(gestureState.dx, SLIDE_WIDTH - THUMB_SIZE));
+        const newX = Math.max(0, Math.min(gestureState.dx, maxThumbX));
         slideX.setValue(newX);
       },
       onPanResponderRelease: (e, gestureState) => {
-        const threshold = SLIDE_WIDTH - THUMB_SIZE - 10;
+        const threshold = maxThumbX - 10;
+
         if (gestureState.dx >= threshold) {
-          slideX.setValue(SLIDE_WIDTH - THUMB_SIZE);
+          slideX.setValue(maxThumbX);
           setTimeout(() => setConfirmVisible(true), 150);
-        } else {
-          Animated.spring(slideX, { toValue: 0, useNativeDriver: false }).start();
+          return;
         }
+
+        const vx = Math.max(-2, Math.min(2, gestureState.vx || 0)); 
+        Animated.decay(slideX, {
+          velocity: vx,
+          deceleration: 0.995,
+          useNativeDriver: false,
+        }).start(() => {
+          Animated.spring(slideX, {
+            toValue: 0,
+            useNativeDriver: false,
+          }).start();
+        });
       },
     })
   ).current;
@@ -56,6 +98,26 @@ export default function App() {
       duration: 4000,
       useNativeDriver: false,
     }).start();
+  };
+
+  // Helper to animate list
+  const animateListIn = () => {
+    listOpacity.setValue(0);
+    listTranslateY.setValue(12);
+    Animated.parallel([
+      Animated.timing(listOpacity, {
+        toValue: 1,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(listTranslateY, {
+        toValue: 0,
+        duration: 450,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
   };
 
   async function fetchData() {
@@ -71,18 +133,34 @@ export default function App() {
 
       if (!Array.isArray(data)) throw new Error('Invalid data format');
 
-      setItems(data.slice(0, 20)); 
-      Animated.timing(progress, { toValue: 1, duration: 300, useNativeDriver: false }).start(() => {
+      setItems(data.slice(0, 20));
+
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }).start(() => {
         setLoading(false);
         setSuccessVisible(true);
-        Animated.timing(slideX, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+        
+        Animated.timing(slideX, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: false,
+        }).start();
+       
+        animateListIn();
       });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Fetch error:', err);
       setLoading(false);
       setErrorMessage(err.message);
       Alert.alert('Fetch Failed', err.message);
-      Animated.timing(slideX, { toValue: 0, duration: 300, useNativeDriver: false }).start();
+      Animated.timing(slideX, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
     }
   }
 
@@ -102,7 +180,6 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Expo Mini-App — Fetch & Slide</Text>
 
-      
       {loading && (
         <View style={styles.progressContainer}>
           <Animated.View style={[styles.progressBar, { width: progressWidth }]} />
@@ -131,25 +208,34 @@ export default function App() {
       <View style={styles.listContainer}>
         <Text style={styles.subHeader}>Results ({items.length})</Text>
 
-        <FlatList
-          data={Array.isArray(items) ? items : []}
-          keyExtractor={(item, index) => String(item?.id ?? index)}
-          renderItem={({ item }) =>
-            item ? (
-              <View style={styles.item}>
-                <Text style={styles.itemTitle}>{item.title ?? 'No title'}</Text>
-                <Text numberOfLines={2} style={styles.itemBody}>
-                  {item.body ?? 'No content'}
-                </Text>
-              </View>
-            ) : null
-          }
-        />
+    
+        <Animated.View
+          style={{
+            flex: 1,
+            opacity: listOpacity,
+            transform: [{ translateY: listTranslateY }],
+          }}
+        >
+          <FlatList
+            data={Array.isArray(items) ? items : []}
+            keyExtractor={(item, index) => String(item?.id ?? index)}
+            renderItem={({ item }) =>
+              item ? (
+                <View style={styles.item}>
+                  <Text style={styles.itemTitle}>{item.title ?? 'No title'}</Text>
+                  <Text numberOfLines={2} style={styles.itemBody}>
+                    {item.body ?? 'No content'}
+                  </Text>
+                </View>
+              ) : null
+            }
+          />
+        </Animated.View>
       </View>
 
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <View className="box" style={styles.modalBox}>
             <Text style={styles.modalTitle}>Confirm Fetch</Text>
             <Text style={styles.modalText}>Fetch posts from the API now?</Text>
             <View style={styles.modalActions}>
@@ -160,7 +246,7 @@ export default function App() {
                   Animated.timing(slideX, { toValue: 0, duration: 300, useNativeDriver: false }).start();
                 }}
               >
-                <Text style={styles.modalButtonText}>Cancel</Text>
+                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
               </Pressable>
               <Pressable style={[styles.modalButton, styles.modalOk]} onPress={() => fetchData()}>
                 <Text style={styles.modalButtonText}>Fetch</Text>
@@ -172,7 +258,7 @@ export default function App() {
 
       <Modal visible={successVisible} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
+          <Animated.View style={[styles.modalBox, { transform: [{ scale: modalScale }] }]}>
             <Text style={styles.modalTitle}>Success!</Text>
             <Text style={styles.modalText}>Fetched {items.length} items successfully.</Text>
             <Pressable
@@ -181,7 +267,7 @@ export default function App() {
             >
               <Text style={styles.modalButtonText}>OK</Text>
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
